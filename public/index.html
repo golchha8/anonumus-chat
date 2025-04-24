@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col h-screen">
+    <div class="bg-blue-600 text-white p-4 text-center">
+        <h1 class="text-2xl font-bold">Anonymous Chat</h1>
+        <p>Connected as: <span id="userId" class="font-semibold">User...</span></p>
+    </div>
+    <div id="chatArea" class="flex-1 p-4 overflow-y-auto"></div>
+    <div class="p-4 bg-white border-t">
+        <div class="flex gap-2">
+            <input id="messageInput" type="text" class="flex-1 p-2 border rounded" placeholder="Type a message..." />
+            <button id="sendButton" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Generate random user ID
+        function generateUserId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let id = 'User';
+            for (let i = 0; i < 6; i++) {
+                id += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return id;
+        }
+
+        const userId = generateUserId();
+        document.getElementById('userId').textContent = userId;
+
+        // Connect to your deployed WebSocket server
+        const ws = new WebSocket('wss://your-chat.onrender.com'); // Update after deployment
+        const chatArea = document.getElementById('chatArea');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+
+        ws.onopen = () => {
+            const div = document.createElement('div');
+            div.textContent = `${userId} joined the chat!`;
+            div.className = 'p-2 mb-2 bg-gray-200 rounded';
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            ws.send(`${userId} joined the chat!`);
+        };
+
+        ws.onmessage = (event) => {
+            const message = event.data;
+            const div = document.createElement('div');
+            div.textContent = message;
+            div.className = 'p-2 mb-2 bg-gray-200 rounded';
+            chatArea.appendChild(div);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        };
+
+        ws.onclose = () => {
+            const div = document.createElement('div');
+            div.textContent = 'Disconnected from server';
+            div.className = 'p-2 mb-2 bg-red-200 rounded';
+            chatArea.appendChild(div);
+        };
+
+        ws.onerror = () => {
+            const div = document.createElement('div');
+            div.textContent = 'WebSocket error occurred. Deploy the server and update the URL.';
+            div.className = 'p-2 mb-2 bg-red-200 rounded';
+            chatArea.appendChild(div);
+        };
+
+        sendButton.onclick = sendMessage;
+        messageInput.onkeypress = (e) => {
+            if (e.key === 'Enter') sendMessage();
+        };
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message && ws.readyState === WebSocket.OPEN) {
+                // Display message locally
+                const div = document.createElement('div');
+                div.textContent = `${userId}: ${message}`;
+                div.className = 'p-2 mb-2 bg-gray-200 rounded';
+                chatArea.appendChild(div);
+                chatArea.scrollTop = chatArea.scrollHeight;
+                // Send to server
+                ws.send(`${userId}: ${message}`);
+                messageInput.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
