@@ -1,9 +1,11 @@
 const WebSocket = require('ws');
 const express = require('express');
 const path = require('path');
+const http = require('http');
 
 const app = express();
-const server = new WebSocket.Server({ port: process.env.PORT || 8080 });
+const server = http.createServer(app); // Create HTTP server
+const wss = new WebSocket.Server({ server }); // Attach WebSocket to HTTP server
 const clients = new Map();
 
 function generateUserId() {
@@ -20,7 +22,7 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-server.on('connection', (ws) => {
+wss.on('connection', (ws) => {
     const userId = generateUserId();
     clients.set(ws, userId);
     console.log('A user connected');
@@ -47,7 +49,7 @@ server.on('connection', (ws) => {
 
 function broadcast(message, senderWs) {
     console.log(message);
-    server.clients.forEach((client) => {
+    wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(message);
         }
@@ -55,6 +57,6 @@ function broadcast(message, senderWs) {
 }
 
 const port = process.env.PORT || 8080;
-app.listen(port, () => {
+server.listen(port, () => {
     console.log(`Server running on port ${port}`);
-});       
+});
