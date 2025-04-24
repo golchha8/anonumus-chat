@@ -1,62 +1,164 @@
-const WebSocket = require('ws');
-const express = require('express');
-const path = require('path');
-const http = require('http');
-
-const app = express();
-const server = http.createServer(app); // Create HTTP server
-const wss = new WebSocket.Server({ server }); // Attach WebSocket to HTTP server
-const clients = new Map();
-
-function generateUserId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let id = 'User';
-    for (let i = 0; i < 6; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
-}
-
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-wss.on('connection', (ws) => {
-    const userId = generateUserId();
-    clients.set(ws, userId);
-    console.log('A user connected');
-    broadcast(`${userId} joined the chat!`, null);
-
-    ws.on('message', (data) => {
-        const message = data.toString();
-        if (message) {
-            broadcast(message, null); // Broadcast to all, including sender
+!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Group Chat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
         }
-    });
-
-    ws.on('close', () => {
-        broadcast(`${userId} left the chat!`, null);
-        clients.delete(ws);
-        console.log('A user disconnected');
-    });
-
-    ws.on('error', (error) => {
-        console.log(`Error with a user: ${error.message}`);
-        clients.delete(ws);
-    });
-});
-
-function broadcast(message, senderWs) {
-    console.log(message);
-    wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(message);
+        .chat-container {
+            background: white;
+            width: 100%;
+            max-width: 600px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
         }
-    });
-}
+        .chat-header {
+            background: #2563eb;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        .chat-area {
+            height: 400px;
+            overflow-y: auto;
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .chat-input {
+            display: flex;
+            padding: 1rem;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        .chat-input button {
+            padding: 0.5rem 1rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .chat-input button:hover {
+            background: #1d4ed8;
+        }
+        .message {
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .message.sent {
+            background: #93c5fd;
+            margin-left: 2rem;
+        }
+        .message.received {
+            background: #e5e7eb;
+            margin-right: 2rem;
+        }
+        .message.system {
+            background: #fefcbf;
+            text-align: center;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2 class="text-xl font-bold">Anonymous Group Chat</h2>
+            <p id="userId" class="text-sm">Connecting...</p>
+        </div>
+        <div id="chatArea" class="chat-area"></div>
+        <div class="chat-input">
+            <input type="text" id="messageInput" placeholder="Type a message..." />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
 
-const port = process.env.PORT || 8080;
-server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
+    <script>
+        // Generate random user ID
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let userId = 'User';
+        for (let i = 0; i < 6; i++) {
+            userId += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        document.getElementById('userId').textContent = `User ID: ${userId}`;
+
+        // WebSocket connection
+        const ws = new WebSocket('wss://YOUR_RENDER_URL'); // Replace with your Render URL
+
+        ws.onopen = () => {
+            console.log('Connected to WebSocket server');
+        };
+
+        ws.onmessage = (event) => {
+            const message = event.data;
+            const chatArea = document.getElementById('chatArea');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message';
+
+            if (message.includes('joined the chat!') || message.includes('left the chat!')) {
+                messageElement.className += ' system';
+            } else if (message.startsWith(userId)) {
+                messageElement.className += ' sent';
+            } else {
+                messageElement.className += ' received';
+            }
+
+            messageElement.textContent = message;
+            chatArea.appendChild(messageElement);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            const chatArea = document.getElementById('chatArea');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message system';
+            messageElement.textContent = 'WebSocket error. Please try again later.';
+            chatArea.appendChild(messageElement);
+        };
+
+        ws.onclose = () => {
+            console.log('Disconnected from WebSocket server');
+            const chatArea = document.getElementById('chatArea');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message system';
+            messageElement.textContent = 'Disconnected from server.';
+            chatArea.appendChild(messageElement);
+        };
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            if (message && ws.readyState === WebSocket.OPEN) {
+                const formattedMessage = `${userId}: ${message}`;
+                ws.send(formattedMessage);
+                messageInput.value = '';
+            }
+        }
+
+        // Send message on Enter key
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
