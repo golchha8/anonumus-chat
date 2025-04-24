@@ -38,7 +38,7 @@
         for (let i = 0; i < 6; i++) { userId += chars.charAt(Math.floor(Math.random() * chars.length)); }
         document.getElementById('userId').textContent = `User ID: ${userId}`;
 
-        const ws = new WebSocket('wss://YOUR_RENDER_URL'); // Replace with your Render URL
+        const ws = new WebSocket('https://anonumus-chat.onrender.com');
         ws.onopen = () => console.log('Connected');
         ws.onmessage = (event) => {
             const message = event.data, chatArea = document.getElementById('chatArea');
